@@ -3,156 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Quiz Generator</title>
+    <title>AI Quiz Synchronized</title>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="quiz.css">
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
+    <div class="background-animation"></div>
+    
     <div class="container">
-        <div class="header">
-            <h1>ITパスポート対策クイズ</h1>
+        <div id="connectionPanel" class="glass-panel connection-panel">
+            <h3><i class="fa-solid fa-link"></i> 接続モード選択</h3>
+            
+            <div class="mode-buttons">
+                <button class="btn mode-btn" onclick="setMode('host')">
+                    <i class="fa-solid fa-desktop"></i>
+                    <span>パソコン<br><small>(画面)</small></span>
+                </button>
+                <button class="btn mode-btn" onclick="setMode('controller')">
+                    <i class="fa-solid fa-mobile-screen"></i>
+                    <span>スマホ<br><small>(リモコン)</small></span>
+                </button>
+            </div>
+            
+            <div id="hostInfo" class="connection-info" style="display: none;">
+                <p class="instruction-text">スマホでアクセスして、以下のIDを入力してください</p>
+                <div class="room-id-box">
+                    <h2 id="displayRoomId"></h2>
+                </div>
+                <p id="connectionStatus" class="status-waiting">
+                    <i class="fa-solid fa-spinner fa-spin"></i> コントローラー待機中...
+                </p>
+            </div>
+
+            <div id="controllerInfo" class="connection-info" style="display: none;">
+                <div class="input-group">
+                    <input type="text" id="inputRoomId" placeholder="部屋ID (例: 1234)" maxlength="4" pattern="\d*">
+                </div>
+                <button class="btn start-btn" onclick="joinGame()">接続する</button>
+            </div>
         </div>
 
-        <div class="quiz-container">
-            <!-- クイズ設定画面 -->
+        <div class="header">
+            <h1><i class="fa-solid fa-star"></i> ジャニーズクイズ</h1>
+        </div>
+
+        <div class="quiz-container glass-panel">
             <div class="quiz-setup" id="quizSetup">
                 <div class="form-group">
-                    <label for="quizTitle">クイズのタイトル:</label>
-                    <input type="text" id="quizTitle" placeholder="例: ITパスポート対策クイズ" value="ITパスポート対策クイズ">
+                    <label>クイズのタイトル</label>
+                    <input type="text" id="quizTitle" value="ジャニーズクイズ">
                 </div>
-                
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="questionCount">問題数:</label>
+                        <label>問題数</label>
                         <input type="number" id="questionCount" min="1" max="20" value="5">
                     </div>
-                    
-                    <div class="form-group">
-                        <button class="btn" onclick="generateQuiz()">クイズを生成</button>
+                    <div class="form-group button-container">
+                        <button class="btn primary-btn" onclick="generateQuiz()">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> クイズを生成
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- クイズ実行画面 -->
+            <div id="controllerScreen" class="controller-screen" style="display: none;">
+                <h2><i class="fa-solid fa-gamepad"></i> コントローラー</h2>
+                
+                <div id="sensorControlArea">
+                    <button id="enableSensorBtn" class="btn sensor-btn" onclick="requestSensorPermission()">
+                        <i class="fa-solid fa-power-off"></i> 操作をONにする
+                    </button>
+                    
+                    <div id="sensorStatus" style="display: none;">
+                        <div class="control-guide">
+                            <div class="guide-item">
+                                <div class="icon-box"><i class="fa-solid fa-up-down"></i></div>
+                                <p>スマホを前後に傾けて<strong>選択</strong></p>
+                            </div>
+                            <div class="guide-divider"></div>
+                            <div class="guide-item">
+                                <div class="icon-box rotate-icon"><i class="fa-solid fa-rotate-right"></i></div>
+                                <p>右に傾けて<strong>決定</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="msg-area">
+                    <p id="controllerMsg"></p>
+                </div>
+            </div>
+
             <div class="quiz-playing" id="quizPlaying">
-                <div class="quiz-progress" id="quizProgress"></div>
-                <h2 id="quizTitleDisplay"></h2>
+                <div class="quiz-header">
+                    <h2 id="quizTitleDisplay"></h2>
+                    <div class="quiz-progress-badge" id="quizProgress"></div>
+                </div>
                 
-                <div class="question" id="currentQuestion"></div>
-                
+                <div class="question-box">
+                    <div class="question" id="currentQuestion"></div>
+                </div>
+
                 <ul class="selections" id="selections"></ul>
                 
                 <div class="answer-feedback" id="answerFeedback"></div>
                 
-                <button class="btn" id="nextBtn" onclick="nextQuestion()" style="display: none;">次の問題</button>
-                <button class="btn" id="finishBtn" onclick="showResults()" style="display: none;">結果を見る</button>
+                <div class="action-buttons">
+                    <button class="btn next-btn" id="nextBtn" onclick="nextQuestion()" style="display: none;">次の問題 <i class="fa-solid fa-arrow-right"></i></button>
+                    <button class="btn finish-btn" id="finishBtn" onclick="showResults()" style="display: none;">結果を見る <i class="fa-solid fa-flag-checkered"></i></button>
+                </div>
             </div>
 
-            <!-- 結果画面 -->
             <div class="quiz-results" id="quizResults">
+                <div class="result-icon">👑</div>
                 <h2>クイズ結果</h2>
                 <div class="score" id="finalScore"></div>
-                <button class="btn" onclick="restartQuiz()">新しいクイズを作成</button>
+                <button class="btn restart-btn" onclick="restartQuiz()">
+                    <i class="fa-solid fa-rotate-left"></i> もう一度遊ぶ
+                </button>
             </div>
         </div>
 
-        <div class="status" id="status">Ready</div>
-        <div class="loading" id="loading">クイズを生成中...</div>
+        <div class="footer-status">
+            <span id="status" class="status-badge">Ready</span>
+        </div>
+
+        <div class="loading-overlay" id="loading">
+            <div class="loading-content">
+                <i class="fa-solid fa-circle-notch fa-spin"></i>
+                <p>AIがクイズを生成中...</p>
+            </div>
+        </div>
     </div>
 
     <script>
+        const socket = io();
+        let currentRoomId = null;
+        let userRole = 'host';
+
         let quizData = [];
         let currentQuestionIndex = 0;
         let score = 0;
         let selectedAnswer = null;
         let hasAnswered = false;
+        
+        let sensorHighlightIndex = 0;
+        let isSensorActive = false;
+        let lastScrollTime = 0;
+        const SCROLL_DELAY = 400;
 
-        // 初期化
-        document.addEventListener('DOMContentLoaded', function() {
-            updateStatus();
-        });
-
-        // ステータス更新
-        function updateStatus() {
-            const statusEl = document.getElementById('status');
-            statusEl.textContent = 'Ready to generate ITパスポート quiz';
-            statusEl.style.color = '#28a745';
+        function setMode(mode) {
+            userRole = mode;
+            // ボタンエリアを隠す（connectionPanel自体は残す）
+            document.querySelector('.mode-buttons').style.display = 'none';
+            document.querySelector('#connectionPanel h3').style.display = 'none';
+            
+            if (mode === 'host') {
+                currentRoomId = Math.floor(1000 + Math.random() * 9000).toString();
+                document.getElementById('hostInfo').style.display = 'block';
+                document.getElementById('displayRoomId').textContent = currentRoomId;
+                
+                socket.emit('join_room', currentRoomId);
+                document.getElementById('quizSetup').style.display = 'block';
+            } else {
+                document.getElementById('controllerInfo').style.display = 'block';
+                document.getElementById('quizSetup').style.display = 'none';
+            }
         }
 
-        // クイズ生成
-        async function generateQuiz() {
-            const title = document.getElementById('quizTitle').value.trim();
-            const count = parseInt(document.getElementById('questionCount').value);
+        function joinGame() {
+            const inputId = document.getElementById('inputRoomId').value;
+            if (inputId.length !== 4) return alert('4桁のIDを入力してください');
+            
+            currentRoomId = inputId;
+            socket.emit('join_room', currentRoomId);
+            
+            document.getElementById('connectionPanel').style.display = 'none';
+            document.getElementById('controllerScreen').style.display = 'block';
+        }
 
-            if (!title || count < 1) {
-                alert('すべての項目を正しく入力してください');
-                return;
+        socket.on('controller_joined', () => {
+            if (userRole === 'host') {
+                const statusEl = document.getElementById('connectionStatus');
+                statusEl.innerHTML = '<i class="fa-solid fa-check-circle"></i> 接続完了！準備OK';
+                statusEl.className = 'status-connected';
+            }
+        });
+
+        socket.on('receive_command', (action) => {
+            if (userRole !== 'host') return;
+            if (action === 'up') moveHighlight(-1);
+            if (action === 'down') moveHighlight(1);
+            if (action === 'select') selectAnswer(sensorHighlightIndex);
+        });
+
+        async function requestSensorPermission() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') startSensor();
+                    else alert('許可されませんでした');
+                } catch (e) { alert('HTTPSが必要です'); }
+            } else {
+                startSensor();
+            }
+        }
+
+        function startSensor() {
+            window.addEventListener('deviceorientation', handleOrientation);
+            isSensorActive = true;
+            document.getElementById('enableSensorBtn').style.display = 'none';
+            document.getElementById('sensorStatus').style.display = 'block';
+        }
+
+        function handleOrientation(event) {
+            if (!isSensorActive || !currentRoomId) return;
+
+            const now = Date.now();
+            const beta = event.beta; 
+            const gamma = event.gamma;
+
+            if (now - lastScrollTime > SCROLL_DELAY) {
+                if (beta < 30) { 
+                    socket.emit('send_command', { roomId: currentRoomId, action: 'up' });
+                    flashControllerMsg('⬆️ 上へ');
+                    lastScrollTime = now;
+                } else if (beta > 70) { 
+                    socket.emit('send_command', { roomId: currentRoomId, action: 'down' });
+                    flashControllerMsg('⬇️ 下へ');
+                    lastScrollTime = now;
+                }
             }
 
+            if (gamma > 30) {
+                 if (now - lastScrollTime > 1000) {
+                    socket.emit('send_command', { roomId: currentRoomId, action: 'select' });
+                    flashControllerMsg('🆗 決定！');
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    lastScrollTime = now;
+                 }
+            }
+        }
+
+        function flashControllerMsg(text) {
+            const msg = document.getElementById('controllerMsg');
+            msg.textContent = text;
+            setTimeout(() => msg.textContent = '', 500);
+        }
+
+        function moveHighlight(direction) {
+            if (document.getElementById('quizPlaying').style.display === 'none') return;
+            if (hasAnswered) return;
+
+            const maxIndex = quizData[currentQuestionIndex].selections.length - 1;
+            let newIndex = sensorHighlightIndex + direction;
+
+            if (newIndex < 0) newIndex = 0;
+            if (newIndex > maxIndex) newIndex = maxIndex;
+
+            if (newIndex !== sensorHighlightIndex) {
+                sensorHighlightIndex = newIndex;
+                highlightSelection(sensorHighlightIndex);
+            }
+        }
+
+        function highlightSelection(index) {
+            const items = document.querySelectorAll('.selection-item');
+            items.forEach((item, i) => {
+                if (i === index) item.classList.add('sensor-highlight');
+                else item.classList.remove('sensor-highlight');
+            });
+        }
+
+        async function generateQuiz() {
+            if(userRole !== 'host') return;
+
+            const title = document.getElementById('quizTitle').value.trim();
+            const count = parseInt(document.getElementById('questionCount').value);
+            
             document.getElementById('loading').classList.add('show');
 
             try {
                 const response = await fetch('/api/', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        title: title,
-                        count: count
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, count })
                 });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'API error');
-                }
 
                 const data = await response.json();
                 quizData = data.data;
-                console.log(data);
-
-
-                if (!Array.isArray(quizData) || quizData.length === 0) {
-                    console.log(quizData);
-                    throw new Error('Invalid quiz data format');
-                }
-
                 currentQuestionIndex = 0;
                 score = 0;
                 document.getElementById('quizTitleDisplay').textContent = data.title;
                 startQuiz();
-                
             } catch (error) {
-                console.error('Error:', error);
-                alert('クイズの生成に失敗しました: ' + error.message);
+                alert('生成失敗: ' + error.message);
             } finally {
                 document.getElementById('loading').classList.remove('show');
             }
         }
 
-        // クイズ開始
         function startQuiz() {
             document.getElementById('quizSetup').style.display = 'none';
             document.getElementById('quizPlaying').style.display = 'block';
             document.getElementById('quizResults').style.display = 'none';
+            document.getElementById('connectionPanel').style.display = 'none';
             showQuestion();
         }
 
-        // 問題表示
         function showQuestion() {
             if (currentQuestionIndex >= quizData.length) {
                 showResults();
                 return;
             }
-
             const question = quizData[currentQuestionIndex];
             hasAnswered = false;
             selectedAnswer = null;
+            sensorHighlightIndex = 0;
 
-            document.getElementById('quizProgress').textContent = 
-                `問題 ${currentQuestionIndex + 1} / ${quizData.length}`;
-            
+            document.getElementById('quizProgress').textContent = `Q.${currentQuestionIndex + 1} / ${quizData.length}`;
             document.getElementById('currentQuestion').textContent = question.question;
             
             const selectionsEl = document.getElementById('selections');
@@ -166,45 +338,37 @@
                 selectionsEl.appendChild(li);
             });
 
+            highlightSelection(0);
+
             document.getElementById('answerFeedback').style.display = 'none';
             document.getElementById('nextBtn').style.display = 'none';
             document.getElementById('finishBtn').style.display = 'none';
         }
 
-        // 答え選択
         function selectAnswer(index) {
             if (hasAnswered) return;
-
             selectedAnswer = index;
             hasAnswered = true;
 
             const question = quizData[currentQuestionIndex];
-            const correctAnswer = question.answer;
-            const isCorrect = selectedAnswer === correctAnswer;
+            const isCorrect = selectedAnswer === question.answer;
+            if (isCorrect) score++;
 
-            if (isCorrect) {
-                score++;
-            }
-
-            const selectionItems = document.querySelectorAll('.selection-item');
-            selectionItems.forEach((item, i) => {
+            const items = document.querySelectorAll('.selection-item');
+            items.forEach((item, i) => {
                 item.onclick = null;
-                if (i === correctAnswer) {
-                    item.classList.add('correct');
-                } else if (i === selectedAnswer && !isCorrect) {
-                    item.classList.add('incorrect');
-                }
+                item.classList.remove('sensor-highlight');
+                if (i === question.answer) item.classList.add('correct');
+                else if (i === selectedAnswer && !isCorrect) item.classList.add('incorrect');
+                else item.style.opacity = '0.5'; // 選ばなかった選択肢を薄く
             });
 
             const feedback = document.getElementById('answerFeedback');
             feedback.style.display = 'block';
-            if (isCorrect) {
-                feedback.className = 'answer-feedback correct';
-                feedback.textContent = '正解！';
-            } else {
-                feedback.className = 'answer-feedback incorrect';
-                feedback.textContent = `不正解。正解は「${question.selections[correctAnswer]}」です。`;
-            }
+            feedback.className = isCorrect ? 'answer-feedback correct' : 'answer-feedback incorrect';
+            feedback.innerHTML = isCorrect ? 
+                '<i class="fa-regular fa-circle-check"></i> 正解！' : 
+                `<i class="fa-regular fa-circle-xmark"></i> 不正解...<br><span style="font-size:0.8em">正解は「${question.selections[question.answer]}」</span>`;
 
             if (currentQuestionIndex < quizData.length - 1) {
                 document.getElementById('nextBtn').style.display = 'inline-block';
@@ -213,29 +377,28 @@
             }
         }
 
-        // 次の問題
         function nextQuestion() {
             currentQuestionIndex++;
             showQuestion();
         }
 
-        // 結果表示
         function showResults() {
             document.getElementById('quizPlaying').style.display = 'none';
             document.getElementById('quizResults').style.display = 'block';
-            
             const percentage = Math.round((score / quizData.length) * 100);
-            document.getElementById('finalScore').textContent = 
-                `${score} / ${quizData.length} 問正解 (${percentage}%)`;
+            document.getElementById('finalScore').innerHTML = `
+                <span style="font-size: 1.5em; display:block; margin-bottom:10px;">${score}問 正解！</span>
+                <span style="font-size: 0.8em; opacity: 0.8;">(全${quizData.length}問中)</span>
+            `;
         }
 
-        // クイズリスタート
         function restartQuiz() {
-            document.getElementById('quizResults').style.display = 'none';
-            document.getElementById('quizSetup').style.display = 'block';
-            quizData = [];
-            currentQuestionIndex = 0;
-            score = 0;
+            location.reload(); // リセットを確実にするためリロード
+        }
+
+        document.addEventListener('DOMContentLoaded', updateStatus);
+        function updateStatus() {
+            document.getElementById('status').textContent = 'System Ready';
         }
     </script>
 </body>
