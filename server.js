@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+
+
 const app = express();
 const server = http.createServer(app); // serverを作成
 const io = new Server(server); // socket.ioを紐付け

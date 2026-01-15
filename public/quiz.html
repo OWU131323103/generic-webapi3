@@ -104,6 +104,15 @@
                 </div>
                 
                 <div class="question-box">
+                    <div id="timerContainer" class="timer-container">
+                        <div class="timer-icon"><i class="fa-solid fa-stopwatch"></i></div>
+                        <div class="timer-bar-bg">
+                        <div id="timerBar" class="timer-bar"></div>
+                    </div>
+                 <div id="timerText" class="timer-text">15</div>
+                </div>
+
+<div class="question" id="currentQuestion"></div>
                     <div class="question" id="currentQuestion"></div>
                 </div>
 
@@ -144,6 +153,10 @@
         let currentRoomId = null;
         let userRole = 'host';
 
+        // --- 変数追加 ---
+        let timerInterval = null;
+        const TIME_LIMIT = 15; // 制限時間（秒）
+        
         let quizData = [];
         let currentQuestionIndex = 0;
         let score = 0;
@@ -193,13 +206,30 @@
             }
         });
 
+        
         socket.on('receive_command', (action) => {
             if (userRole !== 'host') return;
+
+            // ★追加ロジック：回答済みの場合の処理
+            if (hasAnswered) {
+                // 「決定（右に傾ける）」操作が来たら、次の問題へ
+                if (action === 'select') {
+                    if (currentQuestionIndex < quizData.length - 1) {
+                        nextQuestion(); // 次の問題へ（タイマーも復活します）
+                    } else {
+                        showResults();  // 最後の問題なら結果画面へ
+                    }
+                }
+                return; // ここで処理を終わらせる（回答選択へ行かせない）
+            }
+
+            // 回答前の通常の操作
             if (action === 'up') moveHighlight(-1);
             if (action === 'down') moveHighlight(1);
             if (action === 'select') selectAnswer(sensorHighlightIndex);
         });
 
+        
         async function requestSensorPermission() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 try {
@@ -314,11 +344,68 @@
             showQuestion();
         }
 
+
+
+
+
+        // --- タイマー機能を追加した新しい関数たち ---
+
+        function startTimer() {
+            let timeLeft = TIME_LIMIT;
+            const timerBar = document.getElementById('timerBar');
+            const timerText = document.getElementById('timerText');
+            
+            // 表示のリセット
+            timerText.textContent = timeLeft;
+            timerBar.style.width = '100%';
+            timerBar.style.backgroundColor = '#48bb78'; // 緑色
+
+            // 1秒ごとに実行
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerText.textContent = timeLeft;
+                
+                // バーの長さを更新
+                const percentage = (timeLeft / TIME_LIMIT) * 100;
+                timerBar.style.width = `${percentage}%`;
+
+                // 色を変える演出（5秒以下で赤く）
+                if (timeLeft <= 5) {
+                    timerBar.style.backgroundColor = '#e53e3e';
+                } else if (timeLeft <= 10) {
+                    timerBar.style.backgroundColor = '#ecc94b';
+                }
+
+                // 時間切れ判定
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timeUp(); // 時間切れ処理へ
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function timeUp() {
+            // 時間切れとして処理（-1 は時間切れの合図）
+            selectAnswer(-1);
+        }
+
+        // --- 既存の関数をアップデート ---
+
         function showQuestion() {
             if (currentQuestionIndex >= quizData.length) {
                 showResults();
                 return;
             }
+            // 前のタイマーがあれば止める
+            stopTimer();
+
             const question = quizData[currentQuestionIndex];
             hasAnswered = false;
             selectedAnswer = null;
@@ -343,15 +430,24 @@
             document.getElementById('answerFeedback').style.display = 'none';
             document.getElementById('nextBtn').style.display = 'none';
             document.getElementById('finishBtn').style.display = 'none';
+
+            // ★ここでタイマー開始！
+            startTimer();
         }
 
         function selectAnswer(index) {
             if (hasAnswered) return;
+            
+            // ★回答したらタイマーを止める
+            stopTimer();
+            
             selectedAnswer = index;
             hasAnswered = true;
 
             const question = quizData[currentQuestionIndex];
-            const isCorrect = selectedAnswer === question.answer;
+            // indexが -1 なら時間切れ、それ以外なら正誤判定
+            const isCorrect = (index !== -1) && (selectedAnswer === question.answer);
+            
             if (isCorrect) score++;
 
             const items = document.querySelectorAll('.selection-item');
@@ -359,16 +455,24 @@
                 item.onclick = null;
                 item.classList.remove('sensor-highlight');
                 if (i === question.answer) item.classList.add('correct');
-                else if (i === selectedAnswer && !isCorrect) item.classList.add('incorrect');
-                else item.style.opacity = '0.5'; // 選ばなかった選択肢を薄く
+                else if (i === selectedAnswer && !isCorrect && index !== -1) item.classList.add('incorrect');
+                else item.style.opacity = '0.5';
             });
 
             const feedback = document.getElementById('answerFeedback');
             feedback.style.display = 'block';
-            feedback.className = isCorrect ? 'answer-feedback correct' : 'answer-feedback incorrect';
-            feedback.innerHTML = isCorrect ? 
-                '<i class="fa-regular fa-circle-check"></i> 正解！' : 
-                `<i class="fa-regular fa-circle-xmark"></i> 不正解...<br><span style="font-size:0.8em">正解は「${question.selections[question.answer]}」</span>`;
+            
+            if (index === -1) {
+                // 時間切れの場合の表示
+                feedback.className = 'answer-feedback incorrect';
+                feedback.innerHTML = `<i class="fa-regular fa-clock"></i> 時間切れ！<br><span style="font-size:0.8em">正解は「${question.selections[question.answer]}」</span>`;
+            } else {
+                // 通常の正誤表示
+                feedback.className = isCorrect ? 'answer-feedback correct' : 'answer-feedback incorrect';
+                feedback.innerHTML = isCorrect ? 
+                    '<i class="fa-regular fa-circle-check"></i> 正解！' : 
+                    `<i class="fa-regular fa-circle-xmark"></i> 不正解...<br><span style="font-size:0.8em">正解は「${question.selections[question.answer]}」</span>`;
+            }
 
             if (currentQuestionIndex < quizData.length - 1) {
                 document.getElementById('nextBtn').style.display = 'inline-block';
@@ -376,6 +480,11 @@
                 document.getElementById('finishBtn').style.display = 'inline-block';
             }
         }
+
+
+
+
+
 
         function nextQuestion() {
             currentQuestionIndex++;

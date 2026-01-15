@@ -224,3 +224,49 @@
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 @keyframes bounceRight { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
+
+
+/* --- タイマーのデザイン (quiz.cssの末尾に追加) --- */
+.timer-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 10px 20px;
+    border-radius: 50px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    /* 幅を制限して中央寄せ */
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.timer-icon {
+    font-size: 24px;
+    color: #4a5568;
+}
+
+.timer-bar-bg {
+    flex-grow: 1;
+    height: 12px;
+    background-color: #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden; /* バーがはみ出さないように */
+}
+
+.timer-bar {
+    height: 100%;
+    background-color: #48bb78; /* 最初は緑 */
+    width: 100%;
+    transition: width 1s linear, background-color 0.3s ease; /* スムーズに動く設定 */
+}
+
+.timer-text {
+    font-size: 24px;
+    font-weight: 800;
+    color: #4a5568;
+    width: 40px;
+    text-align: right;
+    font-family: monospace; /* 数字の幅を固定 */
+}
